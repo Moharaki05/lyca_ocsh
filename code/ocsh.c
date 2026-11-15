@@ -7,6 +7,10 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <errno.h>
+#include <termios.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 extern char **environ;
 
@@ -17,6 +21,11 @@ extern char **environ;
 #define MAX_VARS 64
 #define MAX_NAME 64
 #define MAX_VALUE 256
+#define MAX_MATCHES 256
+
+void expandVars(const char *in, char *out, size_t size);
+const char *findClosingParen(const char *s);
+void substitute(const char *cmdStart, size_t length, char *out, size_t *o, size_t size);
 
 // Command history
 char *history[MAX_HISTORY];
@@ -91,61 +100,6 @@ int statusToCode(int status){
 	return 1;
 }
 
-void expandVars(const char *in, char *out, size_t size){
-	size_t o = 0, i = 0;
-	while (in[i] != '\0' && o < size - 1){
-		if (in[i] != '$'){
-			out[o++] = in[i++];
-			continue;
-		}
-		i++;	// skip the '$'
-		char name[MAX_NAME];
-		char num[32];
-		const char *val = NULL;
-
-		if (in[i] == '?'){
-			snprintf(num, sizeof(num), "%d", lastStatus);
-			val = num;
-			i++;
-		}
-		else if (in[i] == '!'){
-			if (lastBgPid > 0)
-				snprintf(num, sizeof(num), "%d", (int)lastBgPid);
-			else num[0] = '\0'; // no BG job yet : empty
-			val = num;
-			i++;
-		}
-		else if (in[i] == '{'){
-			const char *end = strchr(in + i, '}');
-			size_t length = end ? (size_t)(end - (in + i + 1)) : 0;
-			if (end == NULL || length >= MAX_NAME || !isValidName(in + i + 1, length)) {
-				out[o++] = '$'; // not a valid ${NAME}: keep it as a text
-				continue;
-			}
-			//memcpy copies memory blocks from a mem address to a specified one.
-			memcpy(name, in + i + 1, length);
-			name[length] = '\0';
-			val = getVar(name);
-			i = (size_t)(end - in) + 1;
-		}
-		else if (isalpha((unsigned char)in[i]) || in[i] == '_') {
-			size_t length = 0;
-			while ((isalnum((unsigned char)in[i]) || in[i] == '_') && length < MAX_NAME - 1)
-				name[length++] = in[i++];
-			name[length] = '\0';
-			val = getVar(name);
-		}
-		else {
-			out[o++] = '$'; // lone '$': keep it as text
-			continue;
-		}
-
-		for (size_t k = 0; val && val[k] != '\0' && o < size - 1; k++)
-			out[o++] = val[k];
-	}
-	out[o] = '\0';
-}
-
 // Alias table: ocsh names -> real Linux commands
 struct Alias {
 	const char *name;
@@ -216,6 +170,263 @@ struct Info infoTable[] = {
 	{"export",	"export NAME[=value]	make a variable visible to the programs you launch"}
 };
 int infoCount = sizeof(infoTable) / sizeof(infoTable[0]);
+
+static int cmpStr(const void *a, const void *b) {
+	return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+//Add a copy of s to matches (no duplicates). Returns the new count
+static int addMatch(char *matches[], int count, int max, const char *s) {
+	if (count >= max) return count;
+	for (int i = 0; i < count; i++)
+		if (strcmp(matches[i], s) == 0) return count;
+	char *copy = strdup(s);
+	if (copy == NULL) return count;
+	matches[count] = copy;
+	return count + 1;
+}
+
+//Programs found in the PATH directories whose name starts with prefix
+static int addPathPrograms(const char *prefix, char *matches[], int count, int max){
+	const char *path = getenv("PATH");
+	if (path == NULL) return count;
+	size_t plength = strlen(prefix);
+
+	while (*path != '\0' && count < max) {
+		const char *sep = strchr(path, ':');
+		size_t length = sep ? (size_t)(sep - path) : strlen(path);
+		char dir[MAX_BUFFER];
+		if (length > 0 && length < sizeof(dir)) {
+			memcpy(dir, path, length);
+			dir[length] = '\0';
+			DIR *d = opendir(dir);
+			if (d != NULL) {
+				struct dirent *e;
+				while ((e = readdir(d)) != NULL && count < max) {
+					if (strncmp(e -> d_name, prefix, plength) != 0) continue;
+					char full[2 * MAX_BUFFER];
+					snprintf(full, sizeof(full), "%s/%s", dir, e -> d_name);
+					if (access(full, X_OK) == 0)
+						count = addMatch(matches, count, max, e->d_name);
+				}
+				closedir(d);
+			}
+		}
+		path = sep ? sep + 1 : path + length;
+	}
+	return count;	
+}
+
+//Files and directories matching prefix ("src/ma -> dir "src", base "ma").
+//Directories get a trailing '/'
+static int addFiles(const char *prefix, char *matches[], int count, int max) {
+	const char *slash = strrchr(prefix, '/');
+	char dir[MAX_BUFFER] = "";
+	const char *base = prefix;
+	if (slash != NULL) {
+		size_t dlength = (size_t)(slash - prefix) + 1;
+		if(dlength >= sizeof(dir)) return count;
+		memcpy(dir, prefix, dlength);
+		dir[dlength] = '\0';
+		base = slash + 1;
+	}
+	size_t blength = strlen(base);
+
+	DIR *d = opendir(dir[0] != '\0' ? dir : ".");
+	if (d == NULL) return count;
+	struct dirent *e;
+	while ((e = readdir(d)) != NULL && count < max) {
+		if (strncmp(e->d_name, base, blength) != 0) continue;
+		if (e->d_name[0] == '.' && base[0] != '.') continue;
+		char candidate[2 * MAX_BUFFER];
+		snprintf(candidate, sizeof(candidate), "%s%s", dir, e->d_name);
+		struct stat st;
+		if (stat(candidate, &st) == 0 && S_ISDIR(st.st_mode))
+			strncat(candidate,"/", sizeof(candidate) - strlen(candidate) - 1);
+		count = addMatch(matches, count, max, candidate);
+	}
+	closedir(d);
+	return count;
+}
+
+//Candidates for the word being typed. Every match starts with prefix.
+//isFirstWord = 1: builtins, aliases and PATH programs. Otherwise : files.
+//The matches are malloc'ed : the caller frees them. Returns the number of matches.
+int findCompletions(const char *prefix, int isFirstWord, char *matches[], int max) {
+	int count = 0;
+	size_t plength = strlen(prefix);
+
+	if(isFirstWord && strchr(prefix, '/') == NULL) {
+		for (int i = 0; i < infoCount; i++)
+			if (strncmp(infoTable[i].name, prefix, plength) == 0)
+				count = addMatch(matches, count, max, infoTable[i].name);
+		for (int i = 0; i < aliasCount; i++)
+			if(strncmp(aliases[i].name, prefix, plength) == 0)
+				count = addMatch(matches, count, max, aliases[i].name);
+		if (plength > 0)
+			count = addPathPrograms(prefix, matches, count, max);
+	}
+	else {
+		count = addFiles(prefix, matches, count, max);
+	}
+	qsort(matches, (size_t)count, sizeof(char *), cmpStr);
+	return count;
+}
+
+size_t commonPrefixLength(char *matches[], int n) {
+	if (n == 0) return 0;
+	size_t length = strlen(matches[0]);
+	for (int i = 1; i < n; i++) {
+		size_t k = 0;
+		while (k < length && matches[i][k] == matches[0][k]) k++;
+		length = k;
+	}
+	return length;
+}
+
+static void writeOut(const char *s, size_t n) {
+	if (write(STDOUT_FILENO, s, n) < 0) { /* nothing useful to do */ }
+}
+
+static void insertText(char *buf, size_t *length, size_t size, const char *s, size_t n) {
+	for (size_t k = 0; k < n && *length < size - 1; k++) {
+		buf[(*length)++] = s[k];
+		writeOut(&s[k], 1);
+	}
+	buf[*length] = '\0';
+}
+
+//Handling events when Tab is pressed
+static void handleTab(const char *prompt, char *buf, size_t *length, size_t size) {
+	//Start of the word being typed
+	size_t start = *length;
+	while (start > 0 && buf[start - 1] != ' ' && buf[start - 1] != '\t')
+		start--;
+
+	//Is it the 1st word of the command (start of line, or right after "->")?
+	size_t k = start;
+	while (k > 0 && (buf[k - 1] == ' ' || buf[k - 1] == '\t'))
+		k--;
+	int isFirstWord = (k == 0) || (k >= 2 && buf[k - 2] == '-' && buf[k - 1] == '>');
+	
+	char prefix[MAX_BUFFER];
+	size_t plength = *length - start;
+	memcpy(prefix, buf + start, plength);
+	prefix[plength] = '\0';
+
+	char *matches[MAX_MATCHES];
+	int n = findCompletions(prefix, isFirstWord, matches, MAX_MATCHES);
+
+	if (n == 0) {
+		writeOut("\a", 1);
+	}
+	else if (n == 1) {
+		size_t m = strlen(matches[0]);
+		insertText(buf, length, size, matches[0] + plength, m - plength);
+		if (matches[0][m - 1] != '/')
+			insertText(buf, length, size, " ", 1);
+	}
+	else {
+		size_t common = commonPrefixLength(matches, n);
+		if (common > plength) {
+			insertText(buf, length, size, matches[0] + plength, common - plength);
+		}
+		else {
+			writeOut("\n", 1);
+			for (int i = 0; i < n; i++){
+				writeOut(matches[i], strlen(matches[i]));
+				writeOut("  ", 2);
+			}
+			writeOut("\n", 1);
+			writeOut(prompt, strlen(prompt));
+			writeOut(buf, *length);
+		}
+	}
+	for (int i = 0; i < n; i++) free(matches[i]);
+}
+
+//Read one line with editing : Tab completion, Backspace, Ctrl+C, Ctrl+D.
+//Returns 0 at the end of the input (Ctrl+D on an empty line), 1 otherwise
+int readLine(const char *prompt, char *buf, size_t size){
+	if (!isatty(STDIN_FILENO)) {
+		if (fgets(buf, (int)size, stdin) == NULL) return 0;
+		buf[strcspn(buf, "\n")] = '\0';
+		return 1;
+	}
+
+	//Raw mode : keys arrive one by one, no echo, Ctrl+C is an ordinary key
+	struct termios saved, raw;
+	tcgetattr(STDIN_FILENO, &saved);
+	raw = saved;
+	raw.c_lflag &= ~(ICANON | ECHO | ISIG);
+	raw.c_cc[VMIN] = 1;
+	raw.c_cc[VTIME] = 0;
+	tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+
+	writeOut(prompt, strlen(prompt));
+	size_t length = 0;
+	buf[0] = '\0';
+	int result = 1;
+
+	while(true) {
+		unsigned char c;
+		ssize_t r = read(STDIN_FILENO, &c, 1);
+		if (r < 0 && errno == EINTR) continue;
+		//Input closed
+		if (r <= 0) {
+			result = 0;
+			break;
+		}
+
+		if (c == '\n' || c == '\r'){
+			writeOut("\n", 1);
+			break;
+		}
+		else if (c == 4) { //Ctrl+D
+			if (length == 0){
+				writeOut("\n", 1);
+				result = 0;
+				break;
+			}
+		}
+		else if (c == 3) { //Ctrl+C : drop the line
+			writeOut("^C\n", 3);
+			length = 0;
+			buf[0] = '\0';
+			break;
+		}
+		else if (c == 127 || c == 8) { //Backspace
+			if(length > 0){
+				//Remove a whole UTF-8 character
+				while(length > 0 && ((unsigned char)buf[length - 1] & 0xC0) == 0x80)
+					length--;
+				if (length > 0) length--;
+				buf[length] = '\0';
+				writeOut("\b \b", 3);
+			}
+		}
+		else if (c == '\t') {
+			handleTab(prompt, buf, &length, size);
+		}
+		else if (c == 27){
+			unsigned char s;
+			if (read(STDIN_FILENO, &s, 1) == 1 && s == '[') {
+				while (read(STDIN_FILENO, &s, 1) == 1 && !(s >= 0x40 && s <= 0x7E)) {/* skip */}
+			}
+			//TODO : Put History Navigation here (Up/Down keys)
+		}
+		else if (c >= 32) { //Printable character (or part of a UTF-8 one)
+			if (length < size - 1){
+				buf[length++] = (char)c;
+				buf[length] = '\0';
+				writeOut((const char *)&c, 1);
+			}
+		}
+	}
+
+	tcsetattr(STDIN_FILENO, TCSANOW, &saved); //restore the terminal BEFORE running commands
+	return result;
+}
 
 int runBuiltins(char *args[], int n){
 	switch(getBuiltin(args[0])){
@@ -485,6 +696,220 @@ void runPipelines(char *segments[], int nseg){
 	if (started < nseg) lastStatus = 1;
 }
 
+void expandVars(const char *in, char *out, size_t size){
+	size_t o = 0, i = 0;
+	while (in[i] != '\0' && o < size - 1){
+		if (in[i] == '`') {
+			const char *end = strchr(in + i + 1, '`');
+			if (end != NULL) {
+				substitute(in + i + 1, (size_t)(end - (in + i + 1)), out, &o, size);
+				i = (size_t)(end - in) + 1;
+				continue;
+			}
+		}
+		
+		if (in[i] != '$'){
+			out[o++] = in[i++];
+			continue;
+		}
+		i++;	// skip the '$'
+		char name[MAX_NAME];
+		char num[32];
+		const char *val = NULL;
+
+		if (in[i] == '?'){
+			snprintf(num, sizeof(num), "%d", lastStatus);
+			val = num;
+			i++;
+		}
+		else if (in[i] == '!'){
+			if (lastBgPid > 0)
+				snprintf(num, sizeof(num), "%d", (int)lastBgPid);
+			else num[0] = '\0'; // no BG job yet : empty
+			val = num;
+			i++;
+		}
+		else if (in[i] == '('){
+			const char *end = findClosingParen(in + i + 1);
+			if (end == NULL){
+				out[o++] = '$';
+				continue;
+			}
+			substitute(in + i + 1, (size_t)(end - (in + i + 1)), out , &o, size);
+			i = (size_t)(end - in) + 1;
+		}
+		else if (in[i] == '{'){
+			const char *end = strchr(in + i, '}');
+			size_t length = end ? (size_t)(end - (in + i + 1)) : 0;
+			if (end == NULL || length >= MAX_NAME || !isValidName(in + i + 1, length)) {
+				out[o++] = '$'; // not a valid ${NAME}: keep it as a text
+				continue;
+			}
+			//memcpy copies memory blocks from a mem address to a specified one.
+			memcpy(name, in + i + 1, length);
+			name[length] = '\0';
+			val = getVar(name);
+			i = (size_t)(end - in) + 1;
+		}
+		else if (isalpha((unsigned char)in[i]) || in[i] == '_') {
+			size_t length = 0;
+			while ((isalnum((unsigned char)in[i]) || in[i] == '_') && length < MAX_NAME - 1)
+				name[length++] = in[i++];
+			name[length] = '\0';
+			val = getVar(name);
+		}		
+		else {
+			out[o++] = '$'; // lone '$': keep it as text
+			continue;
+		}
+
+		for (size_t k = 0; val && val[k] != '\0' && o < size - 1; k++)
+			out[o++] = val[k];
+	}
+	out[o] = '\0';
+}
+
+//Run one full command line (expansion, pipes, redirs, builtins, programs)
+void executeLine(char *line){	
+	char expanded[MAX_BUFFER];
+    expandVars(line, expanded, sizeof(expanded));
+		
+    char* segments[MAX_CMDS];
+    int nseg = splitPipeline(expanded, segments);
+
+	if (nseg == 1) {
+		char* args[MAX_ARGS];
+		char *inFile, *outFile;
+		int n = splitArgs(segments[0], args);
+		int append;
+		if(parseRedirections(args, &n, &inFile, &outFile, &append) < 0) return;
+		if (n == 0) return;
+		
+		if (getBuiltin(args[0]) != B_NONE){
+			int savedIn = dup(STDIN_FILENO);
+			int savedOut = dup(STDOUT_FILENO);
+			lastStatus = 0;
+			if (applyRedirections(inFile, outFile, append) == 0)
+				runBuiltins(args, n);
+			else
+				lastStatus = 1;
+			dup2(savedIn, STDIN_FILENO);
+			dup2(savedOut, STDOUT_FILENO);
+			close(savedIn);
+			close(savedOut);
+			return;
+		}
+						
+		resolveAlias(args);
+					
+		pid_t pid = fork();
+			if(pid == 0){
+				//Child process
+				if(applyRedirections(inFile, outFile, append) < 0)
+					exit(1);
+				execvp(args[0], args);
+								
+				//only if execvp fails
+				fprintf(stderr, "%s: Command not found.\n", args[0]); 
+				exit(127); //127 is the default error code for command not found		
+			}
+			else if (pid > 0){
+				//Parent process
+				int status = 0;
+				if(wait(&status) > 0)
+					lastStatus = statusToCode(status);
+			}
+			else {
+				perror("fork");
+			}
+	}
+	else {
+		runPipelines(segments, nseg);
+	}        
+}
+
+//Run a command line in a child process and capture what it prints.
+//Trailing newlines are removed, inner ones become spaces.
+int captureOutput(const char *cmd, char *out, size_t size){
+	int fd[2];
+	if (pipe(fd) < 0){
+		perror("pipe");
+		return -1;
+	}
+
+	pid_t pid = fork();
+	if (pid < 0) {
+		perror("fork");
+		close(fd[0]);
+		close(fd[1]);
+		return -1;
+	}
+
+	if(pid == 0){
+		//Child process: its stdout goes into pipe
+		close(fd[0]);
+		dup2(fd[1], STDOUT_FILENO);
+		close(fd[1]);
+
+		char line[MAX_BUFFER];
+		snprintf(line, sizeof(line), "%s", cmd);
+		executeLine(line);
+		exit(lastStatus);
+	}
+
+	//Parent process: read until EOF (every write end is closed)
+	close(fd[1]);
+	size_t length = 0;
+	char tmp[256];
+	while(1){
+		ssize_t r = read(fd[0], tmp, sizeof(tmp));
+		if (r < 0 && errno == EINTR) continue; //interrupted by signal : retry
+		if (r <= 0) break;
+		//Keep reading even when "out" is full, otherwise the child blocks on write
+		size_t room = size - 1 - length;
+		size_t take = ((size_t)r < room) ? (size_t)r : room;
+		memcpy(out + length, tmp, take);
+		length += take;
+	}
+	out[length] = '\0';
+	close(fd[0]);
+
+	int status = 0;
+	waitpid(pid, &status, 0);
+	lastStatus = statusToCode(status);
+
+	while (length > 0 && out[length - 1] == '\n')	// strip trailing newlines
+		out[--length] = '\0';
+	for (size_t k = 0; k < length; k++)	// inner newlines -> spaces
+		if (out[k] == '\n') out[k] = ' ';
+	return 0;
+}
+
+//Find the ')' matching an already-opened '(' (s points just after it).
+//Count nested parentheses, so $(say $(path)) works.
+const char *findClosingParen(const char *s){
+	int depth = 1;
+	for (; *s != '\0'; s++){
+		if (*s == '(') depth++;
+		else if (*s == ')' && --depth == 0) return s;
+	}
+	return NULL;
+}
+
+//Run the command (length chars starting at cmdStart) and append its output to out
+void substitute(const char *cmdStart, size_t length, char *out, size_t *o, size_t size){
+	char cmd[MAX_BUFFER];
+	char result[MAX_BUFFER];
+	if (length >= sizeof(cmd)) length = sizeof(cmd) - 1;
+	memcpy(cmd, cmdStart, length);
+	cmd[length] = '\0';
+
+	if (captureOutput(cmd, result, sizeof(result)) < 0) return;
+	for (size_t k = 0; result[k] != '\0' && *o < size - 1; k++){
+		out[(*o)++] = result[k];
+	}
+}
+
 int main(void){
     //Command Buffer
     char cmd[MAX_BUFFER];
@@ -496,79 +921,12 @@ int main(void){
 
     //Main REPL
     while (true) {
-        fprintf(stdout, "ocsh> ");
-
-        //Read the user's inputs
-        if(fgets(cmd, sizeof(cmd), stdin) == NULL){
-        	//fprintf(stdout, "\n");
-        	puts("");
-        	break;	
-        }
-        
-        //strcspn looks for the first occurence of an (or multiple) 
-        //unauthorized character(s) in a string
-        //and returns the char number before it.
-        int newLineIndex = strcspn(cmd, "\n");
-        cmd[newLineIndex] = '\0';
+        if(!readLine("ocsh> ", cmd, sizeof(cmd))) break;
         if(cmd[0] == '\0') continue;
 
-        if(histCount < MAX_HISTORY)
+        if(histCount < MAX_HISTORY){
         	history[histCount++] = strdup(cmd);
-
-        char expanded[MAX_BUFFER];
-        expandVars(cmd, expanded, sizeof(expanded));
-		
-        char* segments[MAX_CMDS];
-        int nseg = splitPipeline(expanded, segments);
-
-		if (nseg == 1) {
-			char* args[MAX_ARGS];
-			char *inFile, *outFile;
-			int n = splitArgs(segments[0], args);
-			int append;
-			if(parseRedirections(args, &n, &inFile, &outFile, &append) < 0) continue;
-			if (n == 0) continue;
-			
-			if (getBuiltin(args[0]) != B_NONE){
-				int savedIn = dup(STDIN_FILENO);
-				int savedOut = dup(STDOUT_FILENO);
-				lastStatus = 0;
-				if (applyRedirections(inFile, outFile, append) == 0)
-					runBuiltins(args, n);
-				else
-					lastStatus = 1;
-				dup2(savedIn, STDIN_FILENO);
-				dup2(savedOut, STDOUT_FILENO);
-				close(savedIn);
-				close(savedOut);
-				continue;
-			}
-							
-			resolveAlias(args);
-						
-			pid_t pid = fork();
-				if(pid == 0){
-					//Child process
-					if(applyRedirections(inFile, outFile, append) < 0)
-						exit(1);
-					execvp(args[0], args);
-									
-					//only if execvp fails
-					fprintf(stderr, "%s: Command not found.\n", args[0]); 
-					exit(127); //127 is the default error code for command not found		
-				}
-				else if (pid > 0){
-					//Parent process
-					int status = 0;
-					if(wait(&status) > 0)
-						lastStatus = statusToCode(status);
-				}
-				else {
-					perror("fork");
-				}
 		}
-		else {
-			runPipelines(segments, nseg);
-		}        
-    }
+		executeLine(cmd);
+  	}
 }
