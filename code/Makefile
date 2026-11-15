@@ -1,0 +1,35 @@
+CC := cc
+CFLAGS := -Wall -Wextra -Iinclude -O1 
+
+SRCDIR := src
+INCDIR := include
+BINDIR := bin
+BUILDDIR := build
+
+PROGRAM := $(BINDIR)/ocsh
+
+SRCS := $(wildcard $(SRCDIR)/*.c)
+
+OBJS := $(SRCS:.c=.o)
+
+all: $(PROGRAM)
+
+
+$(PROGRAM): $(OBJS) | $(BINDIR)
+	$(CC) $(CFLAGS) $(OBJS) -o $(PROGRAM)
+
+$(SRCDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BINDIR):
+	mkdir -m=755 -p $(BINDIR)
+
+run: all
+	./$(PROGRAM)
+
+clean:
+	rm -f $(SRCDIR)/*.o
+	rm -f $(PROGRAM)
+
+.PHONY: all run clean
+
