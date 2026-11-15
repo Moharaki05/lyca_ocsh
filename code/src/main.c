@@ -3,6 +3,7 @@
 int main(void){
     //Command Buffer
     char cmd[MAX_BUFFER];
+	
     //Flush after every printf
     setbuf(stdout, NULL);
 
@@ -13,9 +14,18 @@ int main(void){
 
     //Main REPL
     while (true) {
-        if(!readLine("ocsh> ", cmd, sizeof(cmd))) break;
-        if(cmd[0] == '\0') continue;
+        
+	if (g_child_chg)
+	{
+    	  g_child_chg = 0;
+          checkbgjobs();
+        } 
 
+	
+
+	if(!readLine("ocsh> ", cmd, sizeof(cmd))) break;
+        if(cmd[0] == '\0') continue;
+	
         if(histCount < MAX_HISTORY){
         	history[histCount++] = strdup(cmd);
 		}
