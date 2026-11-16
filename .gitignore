@@ -1,1 +1,3 @@
 code/.vscode/*.json
+code/src/*.o
+code/bin/ocsh
