@@ -198,6 +198,21 @@ int readLine(const char *prompt, char *buf, size_t size){
 	int result = 1;
 
 	while(true) {
+		//Wait for a key, but wake up every 200ms to report finished background jobs
+		struct pollfd pfd = { STDIN_FILENO, POLLIN, 0 };
+		int ready = poll(&pfd, 1, 200);
+		if (ready == 0 || (ready < 0 && errno == EINTR)) { //timeout or signal
+			if(checkbgjobs() > 0){
+				writeOut(prompt, strlen(prompt));
+				writeOut(buf, length);
+			}
+			continue;
+		}
+		if (ready < 0) {
+			ready = 0;
+			break;
+		}
+	
 		unsigned char c;
 		ssize_t r = read(STDIN_FILENO, &c, 1);
 		if (r < 0 && errno == EINTR) continue;

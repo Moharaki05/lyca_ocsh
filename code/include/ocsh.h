@@ -14,6 +14,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <poll.h>
 
 extern char **environ;
 extern volatile sig_atomic_t g_child_chg; /* an atomic type variable with a volatile type called child changed to detect if child changed it status, the reason we added volatile, this value could be changed at any moment */
@@ -123,7 +124,7 @@ void siginthandle(int sig); /* handling sigints so it doesnt exist shell, by the
 void sigchldhandle(int sig); /* same for sigchld */
 
 void addbgjob(pid_t pid, const char* command); /* this function takes 2 arguments, with the ability to parse "&" */
-void checkbgjobs(void);
+int checkbgjobs(void);
 
 void start_ocshrc(void);
 

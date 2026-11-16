@@ -20,10 +20,11 @@ void addbgjob(pid_t pid, const char *command)
     printf("[%d] %d\n", bgjobs[i].id, pid);
 }
 
-void checkbgjobs(void)
+int checkbgjobs(void)
 {
     int status;
     pid_t pid;
+    int reported = 0;
 
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
     {
@@ -31,7 +32,7 @@ void checkbgjobs(void)
         {
             if (bgjobs[i].pid == pid)
             {
-                printf("\n[%d] Done\t%s\n",
+                printf("\r\033[K[%d] Done\t%s\n",
                     bgjobs[i].id,
                     bgjobs[i].command);
 
@@ -39,8 +40,10 @@ void checkbgjobs(void)
                     bgjobs[j] = bgjobs[j + 1];
 
                 bgjobc--;
+                reported++;
                 break;
             }
         }
     }
+    return reported;
 }

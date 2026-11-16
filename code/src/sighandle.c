@@ -8,7 +8,7 @@ void siginthandle(int sig)
 {
     (void)sig;
     g_sigint_rcvd = 1;
-    write(STDOUT_FILENO, "\n", 1);
+    // write(STDOUT_FILENO, "\n", 1);
 }
 
 void sigchldhandle(int sig)
