@@ -6,7 +6,7 @@ char* prompt(void){
      char hostname[MAX_HOSTNAME];
      char cwd[MAX_CWD];
 
- if ((gethostname(hostname, sizeof(hostname)) == 0) && ((getcwd(cwd, sizeof(cwd)) != NULL))){
+ if ((gethostname(hostname, sizeof(hostname)) == 0) && ((getcwd(cwd, sizeof(cwd)) != NULL)) && (getlogin() != NULL)){
 	 snprintf(pmp, sizeof(pmp),"%s@%s:%s > ", getlogin(), hostname, cwd);
  } else {
 	 printf("ocsh > ");
