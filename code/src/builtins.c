@@ -50,7 +50,7 @@ int runBuiltins(char *args[], int n){
 			return 1;
 		
 		case B_PAST:
-			for (int i = 0; i < histCount; i++)
+			for (int i = 0; i < historyCount(); i++)
 				fprintf(stdout, "%4d	%s\n", i + 1, history[i]);
 			return 1;
 			

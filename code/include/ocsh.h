@@ -100,6 +100,11 @@ extern int infoCount;
 
 char* prompt(void);
 
+
+void addHistory(const char *line);
+int historyCount(void);
+const char *historyGet(int i);
+
 int isValidName(const char *s, size_t length);
 int isAssignment(const char *word);
 const char *getVar(const char *name);

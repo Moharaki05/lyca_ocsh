@@ -24,9 +24,7 @@ int main(void){
 	if(!readLine(prompt(), cmd, sizeof(cmd))) break;
         if(cmd[0] == '\0') continue;
 	
-        if(histCount < MAX_HISTORY){
-        	history[histCount++] = strdup(cmd);
-		}
+        addHistory(cmd);
 		executeLine(cmd);
   	}
 }

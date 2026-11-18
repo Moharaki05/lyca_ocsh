@@ -125,6 +125,14 @@ static void insertText(char *buf, size_t *length, size_t size, const char *s, si
 	buf[*length] = '\0';
 }
 
+static void setLine(const char *prompt, char *buf, size_t *length, size_t size, const char *text){
+	snprintf(buf, size, "%s", text);
+	*length = strlen(buf);
+	writeOut("\r\033[K", 4);	// back to column 0, clear the line
+	writeOut(prompt, strlen(prompt));
+	writeOut(buf, *length);	
+}
+
 //Handling events when Tab is pressed
 static void handleTab(const char *prompt, char *buf, size_t *length, size_t size) {
 	//Start of the word being typed
@@ -182,6 +190,9 @@ int readLine(const char *prompt, char *buf, size_t size){
 		buf[strcspn(buf, "\n")] = '\0';
 		return 1;
 	}
+
+	int histPos = historyCount();
+	char draft[MAX_BUFFER] = "";
 
 	//Raw mode : keys arrive one by one, no echo, Ctrl+C is an ordinary key
 	struct termios saved, raw;
@@ -253,11 +264,25 @@ int readLine(const char *prompt, char *buf, size_t size){
 			handleTab(prompt, buf, &length, size);
 		}
 		else if (c == 27){
-			unsigned char s;
-			if (read(STDIN_FILENO, &s, 1) == 1 && s == '[') {
-				while (read(STDIN_FILENO, &s, 1) == 1 && !(s >= 0x40 && s <= 0x7E)) {/* skip */}
+			unsigned char s, final = 0;
+			if (read(STDIN_FILENO, &s, 1) == 1 && (s == '[' || s == '0')) {
+				while (read(STDIN_FILENO, &final, 1) == 1 && !(final >= 0x40 && final <= 0x7E)) {/* skip */}
 			}
-			//TODO : Put History Navigation here (Up/Down keys)
+			if(final == 'A') {	//Up : older entry
+				if (histPos > 0) {
+					if (histPos == historyCount()) {
+						snprintf(draft, sizeof(draft), "%s", buf); //keep what was being typed
+						histPos--;
+						setLine(prompt, buf, &length, size, historyGet(histPos));
+					}
+				}
+			}
+			else if (final == 'B') {
+				if (histPos < historyCount()) {
+					histPos++;
+					setLine(prompt, buf, &length, size, histPos == historyCount() ? draft : historyGet(histPos));
+				}
+			}
 		}
 		else if (c >= 32) { //Printable character (or part of a UTF-8 one)
 			if (length < size - 1){
