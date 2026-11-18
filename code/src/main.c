@@ -22,7 +22,7 @@ int main(void){
         } 
 
 	if(!readLine(prompt(), cmd, sizeof(cmd))) break;
-        if(cmd[0] == '\0') continue;
+    if(cmd[0] == '\0') continue;
 	
         addHistory(cmd);
 		executeLine(cmd);

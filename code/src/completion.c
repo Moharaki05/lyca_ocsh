@@ -191,9 +191,6 @@ int readLine(const char *prompt, char *buf, size_t size){
 		return 1;
 	}
 
-	int histPos = historyCount();
-	char draft[MAX_BUFFER] = "";
-
 	//Raw mode : keys arrive one by one, no echo, Ctrl+C is an ordinary key
 	struct termios saved, raw;
 	tcgetattr(STDIN_FILENO, &saved);
@@ -207,6 +204,8 @@ int readLine(const char *prompt, char *buf, size_t size){
 	size_t length = 0;
 	buf[0] = '\0';
 	int result = 1;
+	int histPos = historyCount();
+	char draft[MAX_BUFFER] = "";
 
 	while(true) {
 		//Wait for a key, but wake up every 200ms to report finished background jobs
@@ -220,7 +219,7 @@ int readLine(const char *prompt, char *buf, size_t size){
 			continue;
 		}
 		if (ready < 0) {
-			ready = 0;
+			result = 0;
 			break;
 		}
 	
@@ -265,16 +264,16 @@ int readLine(const char *prompt, char *buf, size_t size){
 		}
 		else if (c == 27){
 			unsigned char s, final = 0;
-			if (read(STDIN_FILENO, &s, 1) == 1 && (s == '[' || s == '0')) {
+			if (read(STDIN_FILENO, &s, 1) == 1 && (s == '[' || s == 'O')) {
 				while (read(STDIN_FILENO, &final, 1) == 1 && !(final >= 0x40 && final <= 0x7E)) {/* skip */}
 			}
 			if(final == 'A') {	//Up : older entry
 				if (histPos > 0) {
 					if (histPos == historyCount()) {
 						snprintf(draft, sizeof(draft), "%s", buf); //keep what was being typed
-						histPos--;
-						setLine(prompt, buf, &length, size, historyGet(histPos));
 					}
+					histPos--;
+					setLine(prompt, buf, &length, size, historyGet(histPos));
 				}
 			}
 			else if (final == 'B') {

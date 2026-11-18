@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include <poll.h>
+#include <pwd.h>
 
 extern char **environ;
 extern volatile sig_atomic_t g_child_chg; /* an atomic type variable with a volatile type called child changed to detect if child changed it status, the reason we added volatile, this value could be changed at any moment */
