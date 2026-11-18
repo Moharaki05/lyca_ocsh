@@ -32,6 +32,10 @@ extern volatile sig_atomic_t g_sigint_rcvd; /* and this for sigint once its rece
 #define MAX_VALUE 256
 #define MAX_MATCHES 256
 #define MAX_JOBS 32
+#define MAX_CWD 128
+#define MAX_HOSTNAME 1024
+#define MAX_LOGIN 128
+
 
 /* a structure to be used for env variables */
 
@@ -94,6 +98,8 @@ extern int aliasCount;
 extern struct Info infoTable[];
 extern int infoCount;
 
+char* prompt(void);
+
 int isValidName(const char *s, size_t length);
 int isAssignment(const char *word);
 const char *getVar(const char *name);
@@ -129,3 +135,4 @@ int checkbgjobs(void);
 void start_ocshrc(void);
 
 #endif
+

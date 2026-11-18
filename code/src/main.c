@@ -6,7 +6,7 @@ int main(void){
 	
     //Flush after every printf
     setbuf(stdout, NULL);
-
+	
 	//Move cursor to top-left, then clear the screen
     fprintf(stdout,"\033[H\033[2J");
 
@@ -21,9 +21,7 @@ int main(void){
           checkbgjobs();
         } 
 
-	
-
-	if(!readLine("ocsh> ", cmd, sizeof(cmd))) break;
+	if(!readLine(prompt(), cmd, sizeof(cmd))) break;
         if(cmd[0] == '\0') continue;
 	
         if(histCount < MAX_HISTORY){
@@ -32,3 +30,4 @@ int main(void){
 		executeLine(cmd);
   	}
 }
+
