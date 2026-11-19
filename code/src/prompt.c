@@ -11,13 +11,13 @@ char* prompt(void){
 	char hostname[MAX_HOSTNAME];
 	char cwd[MAX_CWD];
 
-	const char *user = getenv("USER");
-	if (user == NULL){
+	//const char *user = getenv("USER");
+	/*if (user == NULL){
 		struct passwd *pw = getpwuid(getuid());
 		user = pw ? pw->pw_name : NULL;
-	}
+	}*/
 
-	if (user == NULL && (gethostname(hostname, sizeof(hostname)) == 0) && 
+	if ((gethostname(hostname, sizeof(hostname)) == 0) && 
 	((getcwd(cwd, sizeof(cwd)) != NULL)) && (getlogin() != NULL)) {
 		if(strncmp(cwd, getenv("HOME"), strlen(getenv("HOME"))) == 0) {
 			snprintf(pmp, sizeof(pmp),"\033[0;32m%s@%s\033[0m:\033[0;34m~%s\033[0m> ", getlogin(), hostname, cwd + strlen(getenv("HOME")));
