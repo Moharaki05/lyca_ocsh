@@ -1,0 +1,14 @@
+osinfo
+if test 5 -gt 3
+then
+    say Outer IF
+
+    if test 2 -gt 10
+    then
+        say Inner IF
+    else
+        say Inner ELSE
+    end
+
+    say Back to outer IF
+end

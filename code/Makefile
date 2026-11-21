@@ -25,7 +25,7 @@ $(BINDIR):
 	mkdir -m=755 -p $(BINDIR)
 
 run: all
-	./$(PROGRAM)
+	PATH="$(CURDIR)/$(BINDIR):$$PATH" ./$(PROGRAM)
 
 clean:
 	rm -f $(SRCDIR)/*.o
