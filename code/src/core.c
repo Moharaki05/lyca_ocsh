@@ -84,10 +84,13 @@ int aliasCount = sizeof(aliases) / sizeof(aliases[0]);
 //If args[0] is an alias, replace it by the real command
 void resolveAlias(char *args[]){
 	for(int i = 0; i < aliasCount; i++){
+
 		if(strcmp(args[0], aliases[i].name) == 0){
 			args[0] = (char *)aliases[i].realCmd;
 			return;
+
 		}
+
 	}
 }
 
@@ -106,15 +109,15 @@ enum Builtin getBuiltin(const char *name){
 }
 
 struct Info infoTable[] = {
-	{"go", "go [dir]	change the current directory (HOME if no dir)"},
+	{"go", "go [dir]  change the current directory (HOME if no dir)"},
 	{"quit", "quit	exit the shell"},
 	{"path", "path	print the current directory"},
-	{"say", "say [text]	print text"},
-	{"info", "info [cmd]	show help about a builtin"},
+	{"say", "say [text]  print text"},
+	{"info", "info [cmd] show help about a builtin"},
 	{"past", "past	show the command history"},
-	{"osinfo", "osinfo	show course information"},
-	{"showenv",	"showenv	show environment variables"},
-	{"export",	"export NAME[=value]	make a variable visible to the programs you launch"}
+	{"osinfo", "osinfo   show course information"},
+	{"showenv", "showenv	show environment variables"},
+	{"export", "export NAME[=value]	 make a variable visible to the programs you launch"}
 };
 int infoCount = sizeof(infoTable) / sizeof(infoTable[0]);
 
