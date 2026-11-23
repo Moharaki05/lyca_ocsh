@@ -1,5 +1,4 @@
-#ifndef OCSH_H
-#define OCSH_H
+#pragma once
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -102,6 +101,11 @@ extern int infoCount;
 char* prompt(void);
 
 
+void create_ocshrc(char* filename);
+void check_ocshrc(char* filename);
+int resolve_ocshrc(void);
+
+
 void addHistory(const char *line);
 int historyCount(void);
 const char *historyGet(int i);
@@ -138,7 +142,4 @@ void sigchldhandle(int sig); /* same for sigchld */
 void addbgjob(pid_t pid, const char* command); /* this function takes 2 arguments, with the ability to parse "&" */
 int checkbgjobs(void);
 
-void start_ocshrc(void);
-
-#endif
 

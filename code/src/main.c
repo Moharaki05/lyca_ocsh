@@ -41,6 +41,17 @@ int main(int argc, char *argv[]) {
         if (cmd[0] == '\0')
             continue;
 
+	if (resolve_ocshrc() ==  -1) return 1;
+
+    //Main REPL
+    while (true) {
+
+	if (g_child_chg)
+	{
+    	  g_child_chg = 0;
+          checkbgjobs();
+        } 
+
         addHistory(cmd);
         executeLine(cmd);
     }
