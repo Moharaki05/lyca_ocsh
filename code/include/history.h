@@ -1,4 +1,2 @@
-#ifndef OCSH_HISTORY_H
-#define OCSH_HISTORY_H
+#pragma once
 #include "ocsh.h"
-#endif

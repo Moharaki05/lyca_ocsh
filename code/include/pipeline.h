@@ -1,4 +1,2 @@
-#ifndef OCSH_PIPELINE_H
-#define OCSH_PIPELINE_H
+#pragma once
 #include "ocsh.h"
-#endif

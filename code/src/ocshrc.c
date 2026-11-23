@@ -47,7 +47,7 @@ int resolve_ocshrc(void){
    check_ocshrc(filename);
 
    free(filename); /* freeing memory after usage */
-   filename = NULL /* as a safety consideration, we need to stop unattended behaviours from dangling pointers */
+   filename = NULL; /* as a safety consideration, we need to stop unattended behaviours from dangling pointers */
 
    return 0;
 

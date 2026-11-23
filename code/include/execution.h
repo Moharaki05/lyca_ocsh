@@ -1,4 +1,2 @@
-#ifndef OCSH_EXECUTION_H
-#define OCSH_EXECUTION_H
+#pragma once
 #include "ocsh.h"
-#endif

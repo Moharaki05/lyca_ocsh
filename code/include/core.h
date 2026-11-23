@@ -1,4 +1,2 @@
-#ifndef OCSH_CORE_H
-#define OCSH_CORE_H
+#pragma once
 #include "ocsh.h"
-#endif

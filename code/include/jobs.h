@@ -1,4 +1,2 @@
-#ifndef OCSH_JOBS_H
-#define OCSH_JOBS_H
+#pragma once
 #include "ocsh.h"
-#endif
