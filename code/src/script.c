@@ -3,9 +3,6 @@
 #include "ocsh.h"
 #include "script.h"
 
-
-
-
 // Skip a block of code until the matching "end" keyword, for nested blocks
 int skipBlock(FILE *file)
 {
@@ -103,7 +100,7 @@ void executeIf(char line[], FILE *file)
             continue;
         }
 
-        // NESTED 
+        // NESTED
         if (strcmp(keyword, "if") == 0)
         {
             if (shouldExecute)
@@ -133,9 +130,117 @@ void executeIf(char line[], FILE *file)
     }
 }
 
-// void executeFor(char line[])
-// {
-// }
+void executeFor(char line[], FILE *file)
+{
+    char variable[50];
+    char values[512];
+
+    char body[100][512];
+    char bodyLine[512];
+    char keyword[50];
+
+    char *valueList[100];
+
+    int bodyCount = 0;
+    int valueCount = 0;
+    int foundDo = 0;
+    int foundEnd = 0;
+
+    // Read the variable and values
+    char *header = line;
+
+    while (isspace((unsigned char)*header))
+        header++;
+
+    if (sscanf(header, "for %49s in %511[^\n]",
+               variable, values) != 2)
+    {
+        printf("Invalid FOR syntax1\n");
+        return;
+    }
+
+    // Find DO
+    while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
+    {
+        if (sscanf(bodyLine, "%49s", keyword) != 1)
+            continue;
+
+        if (strcmp(keyword, "do") == 0)
+        {
+            foundDo = 1;
+            break;
+        }
+    }
+
+    if (!foundDo)
+    {
+        printf("Invalid FOR syntax2\n");
+        return;
+    }
+
+    // Read the body until END
+    while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
+    {
+        if (sscanf(bodyLine, "%49s", keyword) == 1 &&
+            strcmp(keyword, "end") == 0)
+        {
+            foundEnd = 1;
+            break;
+        }
+
+        if (bodyCount >= 100)
+        {
+            printf("FOR body too large\n"); // let me know if yall need me to increase the size
+            return;
+        }
+
+        strcpy(body[bodyCount], bodyLine);
+        bodyCount++;
+    }
+
+    if (!foundEnd)
+    {
+        printf("Missing END\n");
+        return;
+    }
+
+    // Separate the values
+    char *value = strtok(values, " \t\r\n");
+
+    while (value != NULL)
+    {
+        if (valueCount >= 100)
+        {
+            printf("Too many values\n"); // can only store up to 100 elements, (for i in 1 2 3 .... 100), lmk if i should increase them
+            return;
+        }
+
+        valueList[valueCount] = value;
+        valueCount++;
+
+        value = strtok(NULL, " \t\r\n");
+    }
+
+    if (valueCount == 0)
+    {
+        printf("FOR requires at least one value\n");
+        return;
+    }
+
+    // Execute the body for each value
+    for (int i = 0; i < valueCount; i++)
+    {
+        setVar(variable, valueList[i]);
+
+        for (int j = 0; j < bodyCount; j++)
+        {
+            char command[512];
+
+            strcpy(command, body[j]);
+            executeLine(command);
+        }
+    }
+}
 
 // void executeWhile(char line[])
 // {
@@ -176,8 +281,7 @@ int runScript(char filename[])
         }
         else if (strcmp(keyword, "for") == 0)
         {
-            printf("Found FOR\n");
-            // executeFor(line);
+            executeFor(line, file);
         }
         else if (strcmp(keyword, "while") == 0)
         {
