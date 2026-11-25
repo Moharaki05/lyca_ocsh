@@ -1,6 +1,20 @@
 osinfo
-for item in random 42 0 -5 yeees
+for i in 1
 do
-    say Processing:
-    say $item
+    for j in A B
+    do
+        echo Inner loop of j
+
+        if test $j = A
+        then
+            echo This is branch A
+
+        else
+            echo This is branch B
+        end
+
+        echo Finished inner iteration: $j
+    end
+
+    echo Finished outer iteration: $i
 end

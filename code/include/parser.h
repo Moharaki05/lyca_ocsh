@@ -1,4 +1,2 @@
-#ifndef OCSH_PARSER_H
-#define OCSH_PARSER_H
+#pragma once
 #include "ocsh.h"
-#endif

@@ -1,7 +1,4 @@
-#ifndef OCSH_SIGHANDLE_H
-#define OCSH_SIGHANDLE_H
-
+#pragma once
 #include "ocsh.h"
 
-#endif
 

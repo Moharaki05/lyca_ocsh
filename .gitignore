@@ -1,4 +1,4 @@
 code/.vscode/*.json
-code/.vscode/
+.vscode/
 code/bin/ocsh
 code/src/*.o

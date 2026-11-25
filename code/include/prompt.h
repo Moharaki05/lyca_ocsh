@@ -1,5 +1,3 @@
-#ifndef OCSH_PROMPT_H
-#define OCSH_PROMPT_H
+#pragma once
 #include "ocsh.h"
-#endif
 

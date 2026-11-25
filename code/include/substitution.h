@@ -1,4 +1,2 @@
-#ifndef OCSH_SUBSTITUTION_H
-#define OCSH_SUBSTITUTION_H
+#pragma once
 #include "ocsh.h"
-#endif

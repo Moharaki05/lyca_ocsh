@@ -1,9 +1,9 @@
-#include <stdio.h>
-#include <string.h>
 #include "ocsh.h"
 #include "script.h"
 
-// Skip a block of code until the matching "end" keyword, for nested blocks
+// skipBlock
+// Skips lines until the "end" that matches the block we are in.
+// Used when a branch is NOT going to run, so we ignore its body.
 int skipBlock(FILE *file)
 {
     char line[512];
@@ -14,12 +14,15 @@ int skipBlock(FILE *file)
     {
         char *current = line;
 
+        // skip the spaces at the start of the line
         while (isspace((unsigned char)*current))
             current++;
 
+        // get the first word
         if (sscanf(current, "%49s", keyword) != 1)
             continue;
 
+        // check if another nested block inside
         if (strcmp(keyword, "if") == 0 ||
             strcmp(keyword, "for") == 0 ||
             strcmp(keyword, "while") == 0)
@@ -35,10 +38,12 @@ int skipBlock(FILE *file)
         }
     }
 
+    // ran out of lines and never found the matching end
     fprintf(stderr, "OCSH: missing end in skipped block\n");
     return 0;
 }
 
+// executeIf
 void executeIf(char line[], FILE *file)
 {
     // Skip leading spaces before IF
@@ -47,7 +52,8 @@ void executeIf(char line[], FILE *file)
     while (isspace((unsigned char)*condition))
         condition++;
 
-    // Execute the first condition
+    // Run the condition command (condition + 3 skips the word "if")
+    // The result is saved in lastStatus (0 means success)
     executeLine(condition + 3);
 
     int branchTaken = (lastStatus == 0);
@@ -56,6 +62,7 @@ void executeIf(char line[], FILE *file)
     char bodyLine[512];
     char keyword[50];
 
+    // Read the rest of the if block line by line
     while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
     {
         // Skip indentation
@@ -77,14 +84,17 @@ void executeIf(char line[], FILE *file)
         {
             if (branchTaken)
             {
+                // an earlier branch already ran, so this one is skipped
                 shouldExecute = 0;
             }
             else
             {
+                // run this new condition (+ 8 skips "else if ")
                 executeLine(current + 8);
 
                 shouldExecute = (lastStatus == 0);
 
+                // remember that a branch ran so the next else is skipped
                 if (shouldExecute)
                     branchTaken = 1;
             }
@@ -95,22 +105,22 @@ void executeIf(char line[], FILE *file)
         // ELSE
         if (strcmp(keyword, "else") == 0)
         {
+            // only run the else if no branch ran before
             shouldExecute = !branchTaken;
             branchTaken = 1;
             continue;
         }
 
-        // NESTED
+        // NESTED IF
         if (strcmp(keyword, "if") == 0)
         {
             if (shouldExecute)
             {
-                // Execute nested IF recursively
                 executeIf(current, file);
             }
             else
             {
-                // Skip the entire nested IF
+                // this branch is not running, so skip the whole nested IF
                 if (!skipBlock(file))
                     return;
             }
@@ -118,11 +128,29 @@ void executeIf(char line[], FILE *file)
             continue;
         }
 
-        // END
+        // NESTED FOR
+        if (strcmp(keyword, "for") == 0)
+        {
+            if (shouldExecute)
+            {
+                // run the loop
+                executeFor(current, file);
+            }
+            else
+            {
+                // this branch is not running, so skip the whole loop
+                if (!skipBlock(file))
+                    return;
+            }
+
+            continue;
+        }
+
+        // END of this if block
         if (strcmp(keyword, "end") == 0)
             break;
 
-        // Execute commands in selected branch
+        // Execute normal commands if a branch is selected
         if (shouldExecute)
         {
             executeLine(bodyLine);
@@ -130,21 +158,21 @@ void executeIf(char line[], FILE *file)
     }
 }
 
+// executeFor
 void executeFor(char line[], FILE *file)
 {
     char variable[50];
     char values[512];
-
-    char body[100][512];
     char bodyLine[512];
     char keyword[50];
 
     char *valueList[100];
 
-    int bodyCount = 0;
     int valueCount = 0;
     int foundDo = 0;
     int foundEnd = 0;
+
+    int depth = 1;
 
     // Read the variable and values
     char *header = line;
@@ -152,6 +180,7 @@ void executeFor(char line[], FILE *file)
     while (isspace((unsigned char)*header))
         header++;
 
+    // variable gets "i", values gets "1 2 3"
     if (sscanf(header, "for %49s in %511[^\n]",
                variable, values) != 2)
     {
@@ -178,40 +207,60 @@ void executeFor(char line[], FILE *file)
         return;
     }
 
-    // Read the body until END
+    // Make a temp file to store the body of the loop.
+    FILE *temp = tmpfile();
+
+    if (temp == NULL)
+    {
+        printf("Could not create temp file for FOR\n");
+        return;
+    }
+
+    // 1. read the body until the MATCHING end.
     while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
     {
-        if (sscanf(bodyLine, "%49s", keyword) == 1 &&
-            strcmp(keyword, "end") == 0)
+        if (sscanf(bodyLine, "%49s", keyword) == 1)
         {
-            foundEnd = 1;
-            break;
+            // a nested block appears
+            if (strcmp(keyword, "if") == 0 ||
+                strcmp(keyword, "for") == 0 ||
+                strcmp(keyword, "while") == 0)
+            {
+                depth++;
+            }
+            // an end shows up
+            else if (strcmp(keyword, "end") == 0)
+            {
+                depth--;
+
+                if (depth == 0)
+                {
+                    foundEnd = 1;
+                    break;
+                }
+            }
         }
 
-        if (bodyCount >= 100)
-        {
-            printf("FOR body too large\n"); // let me know if yall need me to increase the size
-            return;
-        }
-
-        strcpy(body[bodyCount], bodyLine);
-        bodyCount++;
+        // save the line in the temp file
+        fputs(bodyLine, temp);
     }
 
     if (!foundEnd)
     {
         printf("Missing END\n");
+        fclose(temp);
         return;
     }
 
-    // Separate the values
+    // Separate the values ("1 2 3" becomes "1", "2", "3")
     char *value = strtok(values, " \t\r\n");
 
     while (value != NULL)
     {
         if (valueCount >= 100)
         {
-            printf("Too many values\n"); // can only store up to 100 elements, (for i in 1 2 3 .... 100), lmk if i should increase them
+            printf("Too many values\n");
+            fclose(temp);
             return;
         }
 
@@ -224,22 +273,23 @@ void executeFor(char line[], FILE *file)
     if (valueCount == 0)
     {
         printf("FOR requires at least one value\n");
+        fclose(temp);
         return;
     }
 
-    // Execute the body for each value
+    // 2. run the body once for each value
     for (int i = 0; i < valueCount; i++)
     {
+        // give the loop variable its value
         setVar(variable, valueList[i]);
 
-        for (int j = 0; j < bodyCount; j++)
-        {
-            char command[512];
-
-            strcpy(command, body[j]);
-            executeLine(command);
-        }
+        // go back to the start of the saved body and run it.
+        rewind(temp);
+        runLines(temp);
     }
+
+    // done with the temp file
+    fclose(temp);
 }
 
 // void executeWhile(char line[])
@@ -251,25 +301,16 @@ void executeCommand(char line[])
     executeLine(line);
 }
 
-// Read the script
-int runScript(char filename[])
+// runLines
+// Reads lines from any FILE and runs them.
+void runLines(FILE *file)
 {
-
-    FILE *file = fopen(filename, "r");
-
-    if (file == NULL)
-    {
-        perror("Error opening script");
-        return 1;
-    }
-
     char line[512];
     char keyword[50];
 
     while (fgets(line, sizeof(line), file) != NULL)
     {
-
-        // Read first word of the line
+        // Read first word of the line, skip empty lines
         if (sscanf(line, "%49s", keyword) != 1)
         {
             continue;
@@ -297,9 +338,24 @@ int runScript(char filename[])
         }
         else
         {
+            // normal command
             executeCommand(line);
         }
     }
+}
+
+// runScript
+int runScript(char filename[])
+{
+    FILE *file = fopen(filename, "r");
+
+    if (file == NULL)
+    {
+        perror("Error opening script");
+        return 1;
+    }
+
+    runLines(file);
 
     fclose(file);
     return 0;
