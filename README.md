@@ -1,2 +1,3 @@
 # lyc_ocsh
-Simple Shell recreation using C
+A simple shell competitor to bash and zsh using C
+
