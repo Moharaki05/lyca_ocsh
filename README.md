@@ -14,7 +14,6 @@ code
 └── src
 
 4 directories
-
 ```
 
 # Dependencies:
@@ -32,21 +31,21 @@ code
     - Debian/Ubuntu:
     
     ```bash
-        sudo apt update -y
-        sudo apt install build-essential git -y
+    sudo apt update -y
+    sudo apt install build-essential git -y
     ```
     - Fedora/CentOS/RHEL:
     
     ```bash
-        sudo dnf check-update
-        sudo dnf group install c-development -y
-        sudo dnf install git -y
+    sudo dnf check-update
+    sudo dnf group install c-development -y
+    sudo dnf install git -y
     ```
     - Arch Linux:
     
     ```bash
-        sudo pacman -Syu
-        sudo pacman -S --needed base-devel git 
+    sudo pacman -Syu
+    sudo pacman -S --needed base-devel git 
     ```  
 
 # Building Process:
@@ -56,25 +55,25 @@ code
     - First , we have to clone the repository from our github repository, assuming we are cloning it in the home directory :
    
     ```bash
-      git clone https://github.com/Moharaki05/lyca_ocsh
-      cd ~/lyca_ocsh/code
+    git clone https://github.com/Moharaki05/lyca_ocsh
+    cd ~/lyca_ocsh/code
     ```
     - Method 1: Compiling with GNU C compiler:
 
      ```bash
-      cc -O1 -Wall -Wextra -Werror -Wshadow -Iinclude src/*.c -o ocsh
+     cc -O1 -Wall -Wextra -Werror -Wshadow -Iinclude src/*.c -o ocsh
      ```
     - Method 2: Using GNU Make (Really Recommended):
     
     ```bash
-     make # Tip: use make run (if you prefer to build it and run it immediately) 
+    make # Tip: use make run (if you prefer to build it and run it immediately) 
     ```
 # Installation:
 
 - To install ``ocsh`` in your Linux machine with GNU Make:
     
     ```bash
-     make install # before running it , verify if you're in ~/lyca_ocsh/code where the Makefile is stored
+    make install # before running it , verify if you're in ~/lyca_ocsh/code where the Makefile is stored
     ```
 - After adding it you have to add `~/bin` to `$PATH` on your shell config file (zsh or bash):
     
@@ -87,6 +86,6 @@ code
 - Simply run:
 
     ```bash
-     rm -f ~/bin/ocsh
+    rm -f ~/bin/ocsh
     ```
 
