@@ -7,6 +7,15 @@ A simple shell competitor to bash and zsh using C
 
 # Directory Structure:
 
+```
+code
+├── bin
+├── include
+└── src
+
+4 directories
+
+```
 
 # Dependencies:
 
