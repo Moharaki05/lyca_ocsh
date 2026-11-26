@@ -146,6 +146,22 @@ void executeIf(char line[], FILE *file)
             continue;
         }
 
+        // NESTED WHILE
+        if (strcmp(keyword, "while") == 0)
+        {
+            if (shouldExecute)
+            {
+                executeWhile(current, file);
+            }
+            else
+            {
+                if (!skipBlock(file))
+                    return;
+            }
+
+            continue;
+        }
+
         // END of this if block
         if (strcmp(keyword, "end") == 0)
             break;
@@ -292,13 +308,114 @@ void executeFor(char line[], FILE *file)
     fclose(temp);
 }
 
-// void executeWhile(char line[])
-// {
-// }
-
-void executeCommand(char line[])
+// executeWhile
+void executeWhile(char line[], FILE *file)
 {
-    executeLine(line);
+    char condition[512];
+    char command[512];
+    char bodyLine[512];
+    char keyword[50];
+
+    int foundDo = 0;
+    int foundEnd = 0;
+
+    int depth = 1;
+
+    // Skip leading spaces before WHILE
+    char *header = line;
+
+    while (isspace((unsigned char)*header))
+        header++;
+
+    // gets everything after the word "while"
+    if (sscanf(header, "while %511[^\n]", condition) != 1)
+    {
+        printf("Invalid WHILE syntax1\n");
+        return;
+    }
+
+    // Find DO
+    while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
+    {
+        if (sscanf(bodyLine, "%49s", keyword) != 1)
+            continue;
+
+        if (strcmp(keyword, "do") == 0)
+        {
+            foundDo = 1;
+            break;
+        }
+    }
+
+    if (!foundDo)
+    {
+        printf("Invalid WHILE syntax2\n");
+        return;
+    }
+
+    // Make a temp file to store the body of the loop.
+    FILE *temp = tmpfile();
+
+    if (temp == NULL)
+    {
+        printf("Could not create temp file for WHILE\n");
+        return;
+    }
+
+    // 1. read the body until the MATCHING end
+    while (fgets(bodyLine, sizeof(bodyLine), file) != NULL)
+    {
+        if (sscanf(bodyLine, "%49s", keyword) == 1)
+        {
+            // a nested block appears
+            if (strcmp(keyword, "if") == 0 ||
+                strcmp(keyword, "for") == 0 ||
+                strcmp(keyword, "while") == 0)
+            {
+                depth++;
+            }
+            // an end shows up
+            else if (strcmp(keyword, "end") == 0)
+            {
+                depth--;
+
+                if (depth == 0)
+                {
+                    foundEnd = 1;
+                    break;
+                }
+            }
+        }
+
+        // save the line in the temp file
+        fputs(bodyLine, temp);
+    }
+
+    if (!foundEnd)
+    {
+        printf("Missing END\n");
+        fclose(temp);
+        return;
+    }
+
+    // 2. keep looping while the condition succeeds (lastStatus == 0)
+    while (1)
+    {
+        // copy the condition first then run
+        strcpy(command, condition);
+        executeLine(command);
+
+        // if condition failed, end loop
+        if (lastStatus != 0)
+            break;
+
+        // go back to the start of the saved body and run it
+        rewind(temp);
+        runLines(temp);
+    }
+
+    // done with the temp file
+    fclose(temp);
 }
 
 // runLines
@@ -326,20 +443,23 @@ void runLines(FILE *file)
         }
         else if (strcmp(keyword, "while") == 0)
         {
-            printf("Found WHILE\n");
-            // executeWhile(line);
+            executeWhile(line, file);
         }
         else if (strcmp(keyword, "end") == 0 ||
                  strcmp(keyword, "then") == 0 ||
                  strcmp(keyword, "else") == 0 ||
                  strcmp(keyword, "do") == 0)
         {
-            // TODO: Handle block keywords
+            // TODO: Handle stuffs like continue/break if i decided to do so
+        }
+        else if (strcmp(keyword, "#") == 0)
+        {
+            continue; // comment line, ignore
         }
         else
         {
             // normal command
-            executeCommand(line);
+            executeLine(line);
         }
     }
 }

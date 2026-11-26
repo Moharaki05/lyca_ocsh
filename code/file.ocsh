@@ -1,20 +1,14 @@
 osinfo
-for i in 1
+# Comment test
+name=OCSH
+echo "Project: $name"
+
+for item in A B C
 do
-    for j in A B
-    do
-        echo Inner loop of j
+    echo "Item: $item"
+end
 
-        if test $j = A
-        then
-            echo This is branch A
-
-        else
-            echo This is branch B
-        end
-
-        echo Finished inner iteration: $j
-    end
-
-    echo Finished outer iteration: $i
+if test 1 -eq 1
+then
+    echo "Condition works"
 end
