@@ -31,5 +31,9 @@ clean:
 	rm -f $(SRCDIR)/*.o
 	rm -f $(PROGRAM)
 
-.PHONY: all run clean
+install:
+	install -d -m 755 ~/bin
+	mv ./bin/ocsh ~/bin
+
+.PHONY: all run clean install
 
