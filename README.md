@@ -1,6 +1,6 @@
 # OCSH by lyca
 
-A simple shell competitor to bash and zsh using C
+A simple POSIX compliant shell competitor to bash and zsh using C
 
 # Preview:
 
@@ -18,7 +18,7 @@ code
 
 # Dependencies:
 
-- Building the shell may need the installation of the GNU C compiler itself ``gcc`` or a LLVM C compiler like ``clang``, you may also need GNU Make ``make``, if you're willing to use it in "Building" section , which is really recommended cause it maintain groups of programs instructions:
+- Building the shell may need the installation of the GNU C compiler itself ``gcc`` or a LLVM C compiler like ``clang``, you may also need GNU Make ``make``, if you're willing to use it in "Building" section , which is really recommended cause it maintain groups of programs instructions, we will also use ``git`` for version control :
 
   - `gcc` or `clang`
   - `make`
@@ -87,5 +87,10 @@ code
 
     ```bash
     rm -f ~/bin/ocsh
+    ```
+- Or you can use what we newly added to the Makefile:
+    
+    ```bash
+    make uninstall
     ```
 
