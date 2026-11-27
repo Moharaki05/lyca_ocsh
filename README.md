@@ -2,9 +2,6 @@
 
 A simple POSIX compliant shell competitor to bash and zsh using C
 
-# Preview:
-
-
 # Directory Structure:
 
 ```
