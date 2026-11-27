@@ -79,6 +79,7 @@ code
     
     ```bash
     echo 'export PATH="$HOME/bin:$PATH"' >> .bashrc # or .zshrc if you're using zsh
+    source ~/.bashrc # if using zsh then use source ~/.zshrc
     ```
 
 # Uninstalling:
@@ -92,5 +93,6 @@ code
     
     ```bash
     make uninstall
+    source ~/.bashrc # or .zshrc
     ```
 
