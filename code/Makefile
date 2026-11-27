@@ -35,5 +35,8 @@ install:
 	install -d -m 755 ~/bin
 	mv ./bin/ocsh ~/bin
 
-.PHONY: all run clean install
+uninstall:
+	[[ -d ~/bin ]] && rm -f ~/bin/ocsh
+
+.PHONY: all run clean install uninstall
 
