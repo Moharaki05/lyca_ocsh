@@ -50,7 +50,7 @@ code
 
 # Building Process:
 
-- To build the ``ocsh``, we have 2 approaches, weither to compile it manually using the GNU C compiler or by giving the whole job to GNU Make for (compiling,assembling,linking,and even installing):
+- To build the ``ocsh``, we have 2 approaches, whether to compile it manually using the GNU C compiler or by giving the whole job to GNU Make for (compiling,assembling,linking,and even installing):
  
     - First , we have to clone the repository from our github repository, assuming we are cloning it in the home directory :
    
