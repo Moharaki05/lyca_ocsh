@@ -82,7 +82,7 @@ void executeLine(char *line)
 
             execvp(args[0], args);
 
-            fprintf(stderr, "%s: Command not found.\n", args[0]);
+            fprintf(stderr, "\033[1;33m%s\033[0m: \033[1;31m[x] Command not found.\033[0m\n", args[0]);
             exit(127);
         }
         else if (pid > 0)

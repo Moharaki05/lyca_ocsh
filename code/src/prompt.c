@@ -21,13 +21,13 @@ char* prompt(void){
 	if ((user != NULL) && (gethostname(hostname, sizeof(hostname)) == 0) && 
 	((getcwd(cwd, sizeof(cwd)) != NULL))) {
 		if(strncmp(cwd, getenv("HOME"), strlen(getenv("HOME"))) == 0) {
-			snprintf(pmp, sizeof(pmp),"\033[0;32m%s@%s\033[0m:\033[0;34m~%s\033[0m> ", user, hostname, cwd + strlen(getenv("HOME")));
+			snprintf(pmp, sizeof(pmp),"\033[1;32m%s@%s\033[0m:\033[1;34m~%s\033[0m> ", user, hostname, cwd + strlen(getenv("HOME")));
 		}
 		else {
-			snprintf(pmp, sizeof(pmp),"\033[0;32m%s@%s\033[0m:\033[0;34m%s\033[0m> ", user, hostname, cwd);
+			snprintf(pmp, sizeof(pmp),"\033[1;32m%s@%s\033[0m:\033[1;34m%s\033[0m> ", user, hostname, cwd);
 		}
 	}
-	else snprintf(pmp, sizeof(pmp), "\033[0;32mocsh\033[0m> ");
+	else snprintf(pmp, sizeof(pmp), "\033[1;32mocsh\033[0m> ");
 	return pmp;
 }
 

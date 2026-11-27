@@ -5,7 +5,7 @@ int runBuiltins(char *args[], int n){
 		case B_GO: {
 			const char *dir = (n > 1) ? args[1] : getenv("HOME"); //goes to the wanted directory if given, goes to home otherwise
 			if (dir == NULL || chdir(dir) != 0){
-				perror("go");
+				fprintf(stderr, "\033[1;33mgo :\033[0m\033[1;31m [x] No such file or directory.\033[0m\n");
 				lastStatus = 1;
 			}
 			return 1;
@@ -44,7 +44,7 @@ int runBuiltins(char *args[], int n){
 						return 1;
 					}
 				}
-				fprintf(stderr, "info: no help for '%s'\n", args[1]);
+				fprintf(stderr, "\033[1;33minfo:\033[0m \033[1;31m[x] no help for\033[0m \033[1;33m'%s'\033[0m\n", args[1]);
 				lastStatus = 1;
 			}
 			return 1;
@@ -55,7 +55,7 @@ int runBuiltins(char *args[], int n){
 			return 1;
 			
 		case B_OSINFO:
-			fprintf(stdout,"Systèmes d'Exploitation -- UIR/ESIN\n");
+			fprintf(stdout,"\033[1mSystèmes d'Exploitation\033[0m -- \033[0;34mU\033[0m\033[1;32mI\033[0m\033[0;34mR\033[0m/\033[1;35mESIN\033[0m\n");
 			return 1;
 
 		case B_SHOWENV: {
@@ -83,7 +83,7 @@ int runBuiltins(char *args[], int n){
 				char *eq = strchr(args[i], '=');
 				size_t length = eq ? (size_t)(eq - args[i]) : strlen(args[i]);
 				if (!isValidName(args[i], length)){
-					fprintf(stderr, "export: '%s': not a valid identifier\n", args[i]);
+					fprintf(stderr, "\033[1;33mexport:\033[0m \033[1;31m [x] '%s': not a valid identifier\033[0m\n", args[i]);
 					lastStatus = 1;
 					continue;
 				}
